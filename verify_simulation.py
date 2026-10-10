@@ -16,6 +16,7 @@ from simulation import (
     reward_for,
 )
 from simulation.simulator import GameOverError
+from simulation.random_strategy import random_strategy
 
 
 def check_state_and_rules():
@@ -121,15 +122,16 @@ def check_memory():
 def check_play_game():
     random.seed(42)
 
-    def random_strategy(state):
-        return random.choice(GameRules.legal_actions(state))
-
     sim = Simulator()
     result = sim.play_game(random_strategy, random_strategy)
     assert result.final_state.done is True
     non_empty = sum(1 for c in result.final_state.board if c != "")
+    assert result.final_state.winner is not None or non_empty == 9
     assert len(result.history) == non_empty
-    print("[OK] Simulator.play_game（跑完整局）")
+    b = result.final_state.board
+    print("  终局棋盘:", " ".join(c if c else "." for c in b))
+    print("  赢家:", result.final_state.winner, "| 落子数:", non_empty)
+    print("[OK] Simulator.play_game（Random vs Random 跑完整局）")
 
 
 if __name__ == "__main__":
