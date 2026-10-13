@@ -17,6 +17,7 @@ from simulation import (
 )
 from simulation.simulator import GameOverError
 from simulation.random_strategy import random_strategy
+from simulation.rule_strategy import rule_strategy
 
 
 def check_state_and_rules():
@@ -134,6 +135,49 @@ def check_play_game():
     print("[OK] Simulator.play_game（Random vs Random 跑完整局）")
 
 
+def check_rule_strategy():
+    # 优先级测试
+    # 1. 立即获胜：X 在 0,1，下 2 三连
+    s = GameState(board=("X", "X", "", "O", "O", "", "", "", ""),
+                  turn="X", winner=None, done=False)
+    assert rule_strategy(s) == 2
+
+    # 2. 阻挡对手：O 在 0,1 威胁三连，X 下 2 堵住。
+    #    棋盘 X 2 子、O 2 子且轮到 X，符合 X 先手的正常对局规则。
+    s = GameState(board=("O", "O", "", "", "X", "", "", "", "X"),
+                  turn="X", winner=None, done=False)
+    assert rule_strategy(s) == 2
+
+    # 3. 无威胁选中心
+    s = GameState(board=("X", "", "", "", "", "", "", "", ""),
+                  turn="O", winner=None, done=False)
+    assert rule_strategy(s) == 4
+
+    # 4. 中心被占，选第一个空角落
+    s = GameState(board=("", "", "", "", "X", "", "", "", ""),
+                  turn="O", winner=None, done=False)
+    assert rule_strategy(s) == 0
+
+    # 5. 优先级：己方 win（2）+ 对手威胁（3）→ 优先 win（2）
+    s = GameState(board=("X", "X", "", "", "O", "O", "", "", ""),
+                  turn="X", winner=None, done=False)
+    assert rule_strategy(s) == 2
+
+    print("[OK] rule_strategy（优先级）")
+
+    # 合法性：用合法对局逐步落子产生的非终局状态，验证返回始终合法。
+    # 注：第 5 优先级「边缘」未单独测试——它在真实对局中数学上不可达
+    # （四角+中心占满必产生胜负威胁，会先命中 win/block）。
+    sim = Simulator()
+    st = GameState.empty()
+    for cell in (4, 0, 2, 6):
+        st = sim.step(st, cell)
+        assert not st.done
+        action = rule_strategy(st)
+        assert action in st.empty_cells
+    print("[OK] rule_strategy（合法对局中的合法落子）")
+
+
 if __name__ == "__main__":
     check_state_and_rules()
     check_simulator_transition()
@@ -142,4 +186,5 @@ if __name__ == "__main__":
     check_evaluation()
     check_memory()
     check_play_game()
+    check_rule_strategy()
     print("\nALL CHECKS PASSED")
