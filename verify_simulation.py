@@ -18,6 +18,7 @@ from simulation import (
 from simulation.simulator import GameOverError
 from simulation.random_strategy import random_strategy
 from simulation.rule_strategy import rule_strategy
+from simulation.experiment import run_match
 
 
 def check_state_and_rules():
@@ -178,6 +179,51 @@ def check_rule_strategy():
     print("[OK] rule_strategy（合法对局中的合法落子）")
 
 
+def check_experiment():
+    # first_empty：确定性策略，永远选最小空位索引。
+    # 自对弈：X 先手依次占 0,2,4,6，O 占 1,3,5，
+    # X 在第 7 手经对角线 [2,4,6] 三连获胜（board[8] 仍为空）。
+    def first_empty(state):
+        return state.empty_cells[0]
+
+    # 1. 局数 + 先后手分配
+    rep = run_match(first_empty, first_empty, n_games=10, seed=1)
+    assert rep.n_games == 10
+    assert rep.as_x.total == 5 and rep.as_o.total == 5
+
+    # 2. 确定性策略 → 精确统计（A 执 X 全胜、执 O 全负）
+    assert rep.total.wins == 5
+    assert rep.total.draws == 0
+    assert rep.total.losses == 5
+    assert (rep.as_x.wins, rep.as_x.draws, rep.as_x.losses) == (5, 0, 0)
+    assert (rep.as_o.wins, rep.as_o.draws, rep.as_o.losses) == (0, 0, 5)
+
+    # 3. 内部一致性：total 与两个子统计同源
+    assert rep.total.wins == rep.as_x.wins + rep.as_o.wins
+    assert rep.total.draws == rep.as_x.draws + rep.as_o.draws
+    assert rep.total.losses == rep.as_x.losses + rep.as_o.losses
+
+    # 4. 可复现性：同 seed 连跑两次，总统计与先后手统计逐项一致
+    r1 = run_match(rule_strategy, random_strategy, 100, seed=42)
+    r2 = run_match(rule_strategy, random_strategy, 100, seed=42)
+    assert (r1.total.wins, r1.total.draws, r1.total.losses) == \
+           (r2.total.wins, r2.total.draws, r2.total.losses)
+    assert (r1.as_x.wins, r1.as_x.draws, r1.as_x.losses) == \
+           (r2.as_x.wins, r2.as_x.draws, r2.as_x.losses)
+    assert (r1.as_o.wins, r1.as_o.draws, r1.as_o.losses) == \
+           (r2.as_o.wins, r2.as_o.draws, r2.as_o.losses)
+
+    # 5. n_games 校验：0 / 负数 / bool / 非整数应抛 ValueError
+    for bad in (0, -5, True, 1.5):
+        try:
+            run_match(first_empty, first_empty, bad)
+            raise AssertionError("应抛 ValueError")
+        except ValueError:
+            pass
+
+    print("[OK] experiment（多局对战与评估）")
+
+
 if __name__ == "__main__":
     check_state_and_rules()
     check_simulator_transition()
@@ -187,4 +233,5 @@ if __name__ == "__main__":
     check_memory()
     check_play_game()
     check_rule_strategy()
+    check_experiment()
     print("\nALL CHECKS PASSED")
